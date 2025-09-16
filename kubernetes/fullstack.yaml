@@ -1,0 +1,172 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubetalk
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-env
+  namespace: kubetalk
+data:
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  NODE_ENV: production
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+  namespace: kubetalk
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: examplepassword
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: kubetalk
+spec:
+  serviceName: "postgres"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: pgdata
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: kubetalk
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: postgres
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubetalk-backend
+  namespace: kubetalk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubetalk-backend
+  template:
+    metadata:
+      labels:
+        app: kubetalk-backend
+    spec:
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: kubetalk-backend
+          image: ghcr.io/stollenaar/kubetalk:backend-latest
+          ports:
+            - containerPort: 4000
+          envFrom:
+            - configMapRef:
+                name: app-env
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubetalk-backend
+  namespace: kubetalk
+spec:
+  type: ClusterIP
+  ports:
+    - port: 4000
+      targetPort: 4000
+  selector:
+    app: kubetalk-backend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubetalk-app
+  namespace: kubetalk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubetalk-app
+  template:
+    metadata:
+      labels:
+        app: kubetalk-app
+    spec:
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: kubetalk-app
+          image: ghcr.io/stollenaar/kubetalk:frontend-latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: REACT_APP_API_URL
+              value: http://kubetalk-backend.kubetalk.svc.cluster.local:4000
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubetalk-app
+  namespace: kubetalk
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 3000
+  selector:
+    app: kubetalk-app
