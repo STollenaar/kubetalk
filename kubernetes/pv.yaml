@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  annotations:
+    pv.kubernetes.io/provisioned-by: nfs.csi.k8s.io
+    volume.kubernetes.io/provisioner-deletion-secret-name: ""
+    volume.kubernetes.io/provisioner-deletion-secret-namespace: ""
+  finalizers:
+    - kubernetes.io/pv-protection
+  name: pvc-d7c4c439-916a-4476-88c2-24a84429a485
+spec:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 20Gi
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: postgres-1
+    namespace: jellyfin
+    resourceVersion: "89451732"
+  csi:
+    driver: nfs.csi.k8s.io
+    volumeAttributes:
+      csi.storage.k8s.io/pv/name: pvc-d7c4c439-916a-4476-88c2-24a84429a485
+      csi.storage.k8s.io/pvc/name: postgres-1
+      csi.storage.k8s.io/pvc/namespace: jellyfin
+      server: 192.168.2.113
+      share: /mnt/main/kubernetes
+      storage.kubernetes.io/csiProvisionerIdentity: 1758195604893-1373-nfs.csi.k8s.io
+      subDir: jellyfin/postgres-1
+    volumeHandle: 192.168.2.113#mnt/main/kubernetes#jellyfin/postgres-1#pvc-d7c4c439-916a-4476-88c2-24a84429a485#
+  mountOptions:
+    - nolock
+    - vers=4
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-csi-main
+  volumeMode: Filesystem
